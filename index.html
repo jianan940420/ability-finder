@@ -14,9 +14,9 @@
     body { font-family: "Noto Sans TC", sans-serif; margin: 2em; background: #f8fafc; color: #1e293b; }
     h2 { text-align: center; color: #334155; }
     .container { display: flex; flex-direction: column; align-items: center; gap: 1em; max-width: 700px; margin: 0 auto; padding: 2em; background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    label { font-weight: 600; }
-    select, button, textarea { font-size: 1em; padding: 0.5em; width: 80%; border-radius: 8px; border: 1px solid #cbd5e1; }
-    button { background-color: #4f46e5; color: white; border: none; cursor: pointer; transition: 0.2s; }
+    label { font-weight: 600; margin-top: 0.5em; }
+    select, button, textarea, input[type="file"] { font-size: 1em; padding: 0.5em; width: 80%; border-radius: 8px; border: 1px solid #cbd5e1; }
+    button { background-color: #4f46e5; color: white; border: none; cursor: pointer; transition: 0.2s; margin-top: 0.5em; }
     button:hover { background-color: #4338ca; }
     textarea { height: 140px; resize: none; }
     footer { text-align: center; color: #64748b; font-size: 0.9em; margin-top: 2em; }
@@ -26,6 +26,12 @@
   <h2>能力指標查找器</h2>
 
   <div class="container">
+    <label>上傳 2023 年壓縮檔 (.zip)：</label>
+    <input type="file" id="zip2023" accept=".zip">
+    <label>上傳 2024 年壓縮檔 (.zip)：</label>
+    <input type="file" id="zip2024" accept=".zip">
+    <button id="btnLoad">載入 Excel</button>
+
     <label>施測年度：</label>
     <select id="yearchoose">
       <option value="2023">2023</option>
@@ -56,59 +62,49 @@
       </script>
     </select>
 
-    <button id="btnFind">查找</button>
+    <button id="btnFind">查找能力指標</button>
     <textarea id="result" readonly placeholder="結果將顯示於此..."></textarea>
   </div>
 
   <footer>© 2025 能力指標查找器 | 支援 GitHub Pages</footer>
 
   <script>
-    // ==========================
-    // 讀取 GitHub 上的壓縮 Excel
-    // ==========================
     let df2023 = null;
     let df2024 = null;
 
-    async function loadExcelFromZip(year) {
-      const zipFileName = year === 2023 ? "data/202305_screening.zip"
-                                  	: "data/202405_screening.zip";
-
-      const response = await fetch(zipFileName);
-      if (!response.ok) {
-        alert(`無法載入 ${zipFileName}，請確認檔案已上傳至 GitHub Pages。`);
-        throw new Error("File not found");
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
+    // 將上傳的 zip 解壓並讀取 Excel
+    async function loadExcelFromFile(file) {
+      const arrayBuffer = await file.arrayBuffer();
       const zip = await JSZip.loadAsync(arrayBuffer);
-
-      // 假設壓縮檔裡只有一個 Excel
-      const fileName = Object.keys(zip.files).find(name => name.endsWith(".xlsx"));
-      if (!fileName) {
-        alert("壓縮檔中找不到 Excel 檔案！");
-        throw new Error("No Excel in zip");
-      }
-
+      const fileName = Object.keys(zip.files).find(name => name.endsWith(".xlsx") || name.endsWith(".xls"));
+      if (!fileName) throw new Error("壓縮檔中找不到 Excel");
       const fileData = await zip.file(fileName).async("arraybuffer");
       const workbook = XLSX.read(fileData, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       return XLSX.utils.sheet_to_json(sheet, { header: 1 });
     }
 
-    async function initData() {
+    // 載入按鈕
+    document.getElementById("btnLoad").addEventListener("click", async () => {
+      const zip2023File = document.getElementById("zip2023").files[0];
+      const zip2024File = document.getElementById("zip2024").files[0];
+
+      if (!zip2023File || !zip2024File) {
+        alert("請先上傳兩個壓縮檔！");
+        return;
+      }
+
       try {
-        df2023 = await loadExcelFromZip(2023);
-        df2024 = await loadExcelFromZip(2024);
-        console.log("✅ Excel 檔案已載入完成");
+        df2023 = await loadExcelFromFile(zip2023File);
+        df2024 = await loadExcelFromFile(zip2024File);
+        alert("✅ Excel 已成功載入！");
       } catch (err) {
         console.error(err);
-        alert("載入 Excel 檔案時發生錯誤，請檢查檔案路徑或壓縮檔內容。");
+        alert("載入 Excel 發生錯誤，請檢查壓縮檔內容。");
       }
-    }
+    });
 
-    // ==========================
-    // 查找邏輯
-    // ==========================
+    // 查找能力指標
     function abilityFind() {
       const year = parseInt(document.getElementById("yearchoose").value);
       const subject = document.getElementById("subjectchoose").value;
@@ -117,14 +113,14 @@
       const df = year === 2023 ? df2023 : df2024;
 
       if (!df) {
-        alert(`請先確認 ${year} 年的 Excel 已成功載入`);
+        alert(`請先載入 ${year} 年的 Excel 檔案`);
         return;
       }
 
       const header = df[0];
       const subjIdx = header.indexOf("施測科目");
       const gradeIdx = header.indexOf("就讀年級");
-      const abiStart = 36; // 對應 Python: columns[36:61]
+      const abiStart = 36; // 對應 Python columns[36:61]
 
       const row = df.find(r => r[subjIdx] === subject && r[gradeIdx] == grade);
       if (!row) {
@@ -145,9 +141,6 @@
     }
 
     document.getElementById("btnFind").addEventListener("click", abilityFind);
-
-    // 啟動時載入資料
-    initData();
   </script>
 </body>
 </html>
