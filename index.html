@@ -7,6 +7,8 @@
 
   <!-- Excel 解析 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- JSZip 用於解壓 .zip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.11.0/jszip.min.js"></script>
 
   <style>
     body { font-family: "Noto Sans TC", sans-serif; margin: 2em; background: #f8fafc; color: #1e293b; }
@@ -61,38 +63,52 @@
   <footer>© 2025 能力指標查找器 | 支援 GitHub Pages</footer>
 
   <script>
+    // ==========================
+    // 讀取 GitHub 上的壓縮 Excel
+    // ==========================
     let df2023 = null;
     let df2024 = null;
 
-    // 直接讀 Excel 檔案
-    async function loadExcel(year) {
-      const fileName = year === 2023 ? "data/202305_screening.xlsx"
-                                    : "data/202405_screening.xlsx";
+    async function loadExcelFromZip(year) {
+      const zipFileName = year === 2023 ? "data/202305_screening.zip"
+                                  	: "data/202405_screening.zip";
 
-      const response = await fetch(fileName);
+      const response = await fetch(zipFileName);
       if (!response.ok) {
-        alert(`無法載入 ${fileName}，請確認檔案已上傳至 GitHub Pages。`);
+        alert(`無法載入 ${zipFileName}，請確認檔案已上傳至 GitHub Pages。`);
         throw new Error("File not found");
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const zip = await JSZip.loadAsync(arrayBuffer);
+
+      // 假設壓縮檔裡只有一個 Excel
+      const fileName = Object.keys(zip.files).find(name => name.endsWith(".xlsx"));
+      if (!fileName) {
+        alert("壓縮檔中找不到 Excel 檔案！");
+        throw new Error("No Excel in zip");
+      }
+
+      const fileData = await zip.file(fileName).async("arraybuffer");
+      const workbook = XLSX.read(fileData, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       return XLSX.utils.sheet_to_json(sheet, { header: 1 });
     }
 
     async function initData() {
       try {
-        df2023 = await loadExcel(2023);
-        df2024 = await loadExcel(2024);
+        df2023 = await loadExcelFromZip(2023);
+        df2024 = await loadExcelFromZip(2024);
         console.log("✅ Excel 檔案已載入完成");
       } catch (err) {
         console.error(err);
-        alert("載入 Excel 檔案時發生錯誤，請檢查檔案路徑或內容。");
+        alert("載入 Excel 檔案時發生錯誤，請檢查檔案路徑或壓縮檔內容。");
       }
     }
 
+    // ==========================
     // 查找邏輯
+    // ==========================
     function abilityFind() {
       const year = parseInt(document.getElementById("yearchoose").value);
       const subject = document.getElementById("subjectchoose").value;
