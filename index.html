@@ -70,8 +70,10 @@
     let df2024 = null;
 
     async function loadExcelFromZip(year) {
-      const zipFileName = year === 2023 ? "data/202305屏東篩選測驗作答反應-去個資.zip"
-                                        : "data/202405屏東篩選測驗作答反應-去個資.zip";
+      // 建議 ZIP 改名為英文或數字，例如：
+      const zipFileName = year === 2023 ? "data/202305_screening.zip"
+                                        : "data/202405_screening.zip";
+
 
       const response = await fetch(zipFileName);
       if (!response.ok) {
